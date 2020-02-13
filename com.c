@@ -35,9 +35,17 @@ int openPort(COM_PORT *port)
     port->saio.sa_restorer = NULL;
     sigaction(SIGIO, &port->saio, NULL);
 
+    //настройка сигнала таймера
+    memset(&port->satim, 0, sizeof(port->satim));
+    port->satim.sa_handler = port->port_name;
+
     //подключение сигнала
     fcntl(port->port_d, F_SETOWN, getgid());
     fcntl(port->port_d, F_SETFL, FASYNC);
+
+    port->timer.it_value.tv_sec = 0;
+
+    
 
     //считываем старые параметры порта
     tcgetattr(port->port_d, &port->oldtio);
@@ -57,9 +65,11 @@ int openPort(COM_PORT *port)
     return 0;
 }
 
-void typeInit(COM_PORT *port, char *__name, int __baudrate, void (*__p)(int))
+void typeInit(COM_PORT *port, char *__name, int __baudrate, 
+              void (*__p)(int), void (*__timer_h)(int))
 {
     port->read_handler = __p;
+    port->timer_handler = __timer_h;
     port->port_name = __name;
     port->baudrate = __baudrate;  
     #ifdef DEBUG_PRINT 
@@ -97,3 +107,4 @@ int secCount(int __byteCount)
 
     return (int)res;
 }
+

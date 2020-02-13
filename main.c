@@ -40,7 +40,8 @@ int main()
 {
   printf("Hello World!!!\n");
 
-  typeInit(&portS2, COM1, BAUDRATE, signal_handler_IO);
+  typeInit(&portS2, COM1, BAUDRATE, signal_handler_IO, 
+            signal_handler_TIMOUT);
 
   openPort(&portS2);
 
@@ -143,8 +144,7 @@ void signal_handler_IO(int status)
   //если отправляли данные, флаг будет активен - сброс полученных данных в эхо
   if (portS2.echo_block)
   {
-    tcflush(portS2.port_d, TCIFLUSH);
-    portS2.echo_block = 0;
+    
   } 
   else
   {
@@ -156,7 +156,8 @@ void signal_handler_IO(int status)
     int res = read(portS2.port_d, buf, bytes);//чтение
     
     res = writePort(&portS2, &buf, bytes);//запись
-    secCount(bytes);
+    portS2.timer.it_interval.tv_usec = secCount(bytes)*1000;
+    (void)setitimer(ITIMER_REAL, &portS2.timer, NULL);
     bytes = 0;
     ioctl(portS2.port_d, FIONREAD, &bytes);
     printf("Данные отправлены. В буфере %d байт\n", bytes);
@@ -166,15 +167,11 @@ void signal_handler_IO(int status)
 
 void signal_handler_TIMOUT(int status)
 {
+  #ifdef DEBUG_PRINT
+        printf("Таймер!");
+    #endif
   (void)setitimer(ITIMER_REAL, NULL, NULL); /* выключить таймер */
-  //превышен таймаут
-    //сохраняем принятый массив
-  printf("принят сигнал TIM\n");
-  printf("res = 0");
-  int i = 0;
-  for (i = 0; i < count_read; i++)
-    printf(":%d:%d\n", read_buf[i], count_read);
-  count_read = 0;
+  portS2.echo_block = 0;
 }
 
 //~/x-tools/i686-nptl-linux-gnu/bin/i686-nptl-linux-gnu-gcc -m32 -march=i586 main.c -o testserial -static-libgcc
