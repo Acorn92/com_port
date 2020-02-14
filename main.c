@@ -142,34 +142,42 @@ void signal_handler_IO(int status)
   int bytes = 0;
 
   //если отправляли данные, флаг будет активен - сброс полученных данных в эхо
-  if (portS2.echo_block)
-  {
-    
-  } 
-  else
+  if (!portS2.echo_block)
   {
     //если не это - принимаем данные
     ioctl(portS2.port_d, FIONREAD, &bytes);//получение количества считанных байт
     printf("принят сигнал SIGIO: %d\n", bytes);
     char buf[bytes];
     //(void)setitimer(ITIMER_REAL, NULL, NULL); /* выключить таймер */
-    int res = read(portS2.port_d, buf, bytes);//чтение
-    
-    res = writePort(&portS2, &buf, bytes);//запись
-    portS2.timer.it_interval.tv_usec = secCount(bytes)*1000;
-    (void)setitimer(ITIMER_REAL, &portS2.timer, NULL);
-    bytes = 0;
-    ioctl(portS2.port_d, FIONREAD, &bytes);
-    printf("Данные отправлены. В буфере %d байт\n", bytes);
+    int res = read(portS2.port_d, &buf, bytes);//чтение   
   }
 
+}
+
+void writeDatatoPort(char *data, int data_numb)
+{
+  int res = writePort(&portS2, data, data_numb);//запись
+  int time_delay = secCount(bytes)*2000;
+  // чтобы не заблокировать цикл нулём, 
+  // в случае приёма данных в маленьком количестве
+  portS2.timer.it_value.tv_usec = time_delay >  0 ? time_delay : 2000;
+  //portS2.timer.it_interval.tv_usec = 10000;/*secCount(bytes)*1000;*/
+
+  (void)setitimer(ITIMER_REAL, &portS2.timer, NULL);
+  bytes = 0;
+  ioctl(portS2.port_d, FIONREAD, &bytes);
+  printf("Данные отправлены. В буфере %d байт\n", bytes);
 }
 
 void signal_handler_TIMOUT(int status)
 {
   #ifdef DEBUG_PRINT
-        printf("Таймер!");
-    #endif
+        printf("Таймер!\n");
+  #endif
+  int bytes; 
+  tcflush(portS2.port_d, TCIFLUSH);//очистка эхо
+  ioctl(portS2.port_d, FIONREAD, &bytes);
+    printf("В буфере %d байт\n", bytes);  
   (void)setitimer(ITIMER_REAL, NULL, NULL); /* выключить таймер */
   portS2.echo_block = 0;
 }

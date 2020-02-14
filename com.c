@@ -6,27 +6,27 @@
 int openPort(COM_PORT *port)
 {
     #ifdef DEBUG_PRINT
-        printf("function: openPort %s", port->port_name);
+        printf("function: openPort %s\n", port->port_name);
     #endif
     //открываем порт
     port->port_d = open(port->port_name, O_RDWR | O_NOCTTY | O_NONBLOCK);
     
     #ifdef DEBUG_PRINT
-        printf("function: open %s", port->port_name);
+        printf("function: open %s\n", port->port_name);
     #endif
 
     //проверка успешности
     if (port->port_d < 0)
     {
         #ifdef DEBUG_PRINT
-            printf("Ошибка открытия порта %s", port->port_name);
+            printf("Ошибка открытия порта %s\n", port->port_name);
         #endif
         perror(port->port_name);
         exit(-1);
     }
 
     #ifdef DEBUG_PRINT
-        printf("Порт %s успешно открыт", port->port_name);
+        printf("Порт %s успешно открыт\n", port->port_name);
     #endif
 
     //настройка сигнала
@@ -37,15 +37,15 @@ int openPort(COM_PORT *port)
 
     //настройка сигнала таймера
     memset(&port->satim, 0, sizeof(port->satim));
-    port->satim.sa_handler = port->port_name;
+    port->satim.sa_handler = port->timer_handler;
+    sigaction(SIGALRM, &port->satim, NULL);
+    port->timer.it_value.tv_sec = 0;   
+    port->timer.it_interval.tv_sec = 0;
+   
 
     //подключение сигнала
     fcntl(port->port_d, F_SETOWN, getgid());
-    fcntl(port->port_d, F_SETFL, FASYNC);
-
-    port->timer.it_value.tv_sec = 0;
-
-    
+    fcntl(port->port_d, F_SETFL, FASYNC);         
 
     //считываем старые параметры порта
     tcgetattr(port->port_d, &port->oldtio);
