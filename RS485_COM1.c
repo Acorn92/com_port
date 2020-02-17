@@ -24,7 +24,7 @@ int main()
          
   }
 
-  return 0;
+  return 0;  
 }
 
 //обработка приёма данных с COM1
