@@ -7,6 +7,7 @@
 #include <sys/signal.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <termios.h>
@@ -23,8 +24,10 @@ typedef struct port_t
     char *port_name;//адрес порта в системе
     int baudrate;//скорость
     char echo_block;//блокировка эха
+    char write_block;//блокировка запись, в случае, если идёт чтение
     struct termios oldtio, newtio;//структура хранящая настройка порта
     struct sigaction saio, satim; //объявление действия сигнала (signal action)
+    //struct itimerspec timer; //таймер для отсчёта времени блокировки приёмника
     struct itimerval timer; //таймер для отсчёта времени блокировки приёмника
     void (*read_handler)(int);//указатель на обработчик чтения
     void (*timer_handler)(int);//указатель на обработчик чтения

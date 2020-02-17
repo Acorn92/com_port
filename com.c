@@ -39,7 +39,8 @@ int openPort(COM_PORT *port)
     memset(&port->satim, 0, sizeof(port->satim));
     port->satim.sa_handler = port->timer_handler;
     sigaction(SIGALRM, &port->satim, NULL);
-    port->timer.it_value.tv_sec = 0;   
+    port->timer.it_value.tv_sec = 0;
+       
     port->timer.it_interval.tv_sec = 0;
    
 
@@ -72,6 +73,8 @@ void typeInit(COM_PORT *port, char *__name, int __baudrate,
     port->timer_handler = __timer_h;
     port->port_name = __name;
     port->baudrate = __baudrate;  
+    port->echo_block = 0;
+    port->write_block = 0;
     #ifdef DEBUG_PRINT 
         printf("Проведена инициализация структура порта\n"); 
     #endif
