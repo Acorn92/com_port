@@ -1,7 +1,9 @@
 #ifndef RS485_COM1_H
 #define RS485_COM1_H
 
+#include <sys/stat.h>
 #include "com.h"
+
 
 #define COM1 "/dev/ttyS2"
 #define POSIX_SOURCE 1 //POSIX совместимое устройство

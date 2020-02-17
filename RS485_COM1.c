@@ -10,9 +10,17 @@ int portd = 0;//дескриптор порта 1
 int count_read = 0;
 char read_buf[255];
 COM_PORT portS2;
-int main()
+
+
+int main(char argc, char *argv[])
 {
+  if (int fdFIFO = open(argv[1], ) <= 0)
+  {
+    perror("Error open FIFO file");
+    return -1;
+  }
   printf("Hello World!!!\n");
+  printf("Родительский PID %d \n", (int)getppid());
 
   typeInit(&portS2, COM1, BAUDRATE, signal_handler_IO, 
             signal_handler_TIMOUT);
