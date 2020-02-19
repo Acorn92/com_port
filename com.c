@@ -5,16 +5,8 @@
 
 int openPort(COM_PORT *port)
 {
-    #ifdef DEBUG_PRINT
-        printf("function: openPort %s\n", port->port_name);
-    #endif
     //открываем порт
     port->port_d = open(port->port_name, O_RDWR | O_NOCTTY | O_NONBLOCK | O_NDELAY);
-    
-    #ifdef DEBUG_PRINT
-        printf("function: open %s\n", port->port_name);
-    #endif
-
     //проверка успешности
     if (port->port_d < 0)
     {
@@ -24,11 +16,6 @@ int openPort(COM_PORT *port)
         perror(port->port_name);
         exit(-1);
     }
-
-    #ifdef DEBUG_PRINT
-        printf("Порт %s успешно открыт\n", port->port_name);
-    #endif
-
     fcntl(port->port_d, F_SETFL, 0);//очистка флагов состояний
 
     //настройка сигнала
@@ -41,9 +28,22 @@ int openPort(COM_PORT *port)
     memset(&port->satim, 0, sizeof(port->satim));
     port->satim.sa_handler = port->timer_handler;
     sigaction(SIGALRM, &port->satim, NULL);
-    port->timer.it_value.tv_sec = 0;
-       
+    port->timer.it_value.tv_sec = 0;       
     port->timer.it_interval.tv_sec = 0;
+
+    //настройка сигнала реального времени для передачи данных на чтение
+    sigemptyset(&port->mask);//очищаем маску
+    sigaddset(&port->mask, SIGRTMIN+1);//добавляем к маске SIGRTMIN
+
+    port->sawr.sa_flags = SA_SIGINFO;//делаем сигнал реального времени
+    sigemptyset(&port->sawr.sa_mask);
+
+    port->sawr.sa_sigaction = port->write_handler;
+    if (sigaction(SIGRTMIN+1, &port->sawr, NULL) == -1)
+    {
+        perror("установка обработчика на события COM\n");
+        return 1;
+    }
    
 
     //подключение сигнала
@@ -55,22 +55,12 @@ int openPort(COM_PORT *port)
 
     
     //установка новых параметров порта
-    /*bzero(&port->newtio, sizeof(port->newtio));
-    port->newtio.c_cflag = port->baudrate | CS8 | CLOCAL | CREAD;
-    port->newtio.c_iflag = 0;
-    port->newtio.c_oflag = 0;
-    port->newtio.c_oflag &= ~OPOST; //Обязательно отключить постобработку
-    port->newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG | ECHONL);
-    port->newtio.c_cc[VTIME] = 5; //установка таймаута для понимания конца посылкаи(n*0.1s)
-    port->newtio.c_cc[VMIN] = 0; //блокировать чтение пока не будет принят 1 байт
-*/
     memset(&port->newtio, 0, sizeof(struct termios));
     if ((cfsetispeed(&port->newtio, port->baudrate) < 0) ||
         (cfsetospeed(&port->newtio, port->baudrate) < 0)) 
     {
         perror("Unable to set baudrate");
-    }   
-
+    }
     /*
     CREAD - включить прием
     CLOCAL - игнорировать управление линиями с помошью
@@ -108,21 +98,23 @@ int openPort(COM_PORT *port)
 
     tcflush(port->port_d, TCIFLUSH);//очистка линии
     //tcsetattr(port->port_d, TCSANOW, &port->newtio);//активация новых параметров
-
+    printf("Порт %s успешно открыт\n", port->port_name);
     return 0;
 }
 
 void typeInit(COM_PORT *port, char *__name, int __baudrate, 
-              void (*__p)(int), void (*__timer_h)(int))
+              void (*__p)(int), void (*__timer_h)(int), 
+              void (*__write)(int, siginfo_t *, void *))
 {
     port->read_handler = __p;
     port->timer_handler = __timer_h;
+    port->write_handler = __write;
     port->port_name = __name;
     port->baudrate = __baudrate;  
     port->echo_block = 0;
     port->write_block = 0;
     #ifdef DEBUG_PRINT 
-        printf("Проведена инициализация структура порта\n"); 
+        printf("Проведена инициализация структура порта %s\n", __name); 
     #endif
 }
 
@@ -131,6 +123,7 @@ int writePort(COM_PORT *port, const char *data, char numb_data)
     int res = 0;
     res = write(port->port_d, data, numb_data);
     port->echo_block = 1;//установка флага наличия эхо в порте
+    return res;
 }
 
 int secCount(int __byteCount)

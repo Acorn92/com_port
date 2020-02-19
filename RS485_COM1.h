@@ -18,13 +18,23 @@
 
 #define DEBUG_PRINT = 1;
 
-char *fName;
+int wait_flag = TRUE; //TRUE пока не получен сигнал 
+
+volatile int STOP=FALSE; 
+
+COM_PORT portS2;
+
+char *read_fifoN;//имя канала для принимаемых данных
+char *write_fifoN;//имя канала для отправляемых данных
 
 int PPID = 0;//идентификатор родительского процесса
-
-int fdFIFO;//дескриптор файла именованного канала
+//дескриптор файла именованного канала чтения и записи
+int fdFIFOR, fdFIFOW;
 
 void signal_handler_IO (int status); //обработчик сигнала
 void signal_handler_TIMOUT(int status);
+
+//отправка данных на запись в COM
+void writeDatatoPort(int signum, siginfo_t *siginfo, void *extra);
 
 #endif

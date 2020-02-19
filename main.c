@@ -3,9 +3,48 @@
 int main()
 {
     printPIDInfo();
+    //создаём каналы для чтения и записи в COM порты
+    if( access( PIPE_READ, F_OK ) != -1 ) 
+    {
+        // file exists
+    } 
+    else 
+    {
+        if ( mkfifo(PIPE_READ, 0777) ) 
+        {
+            perror("error mkfifo read\n");
+            return 1;
+        }
+    }   
+    
+    if( access( PIPE_WRITE, F_OK ) != -1 ) 
+    {
+        // file exists
+    } 
+    else 
+    {
+        if ( mkfifo(PIPE_WRITE, 0777) ) 
+        {
+            perror("error mkfifo write\n");
+            return 1;
+        }
+    }
+    printf("%s & %s is created\n", PIPE_READ, PIPE_WRITE);
+
+    //открываем канал для чтения от потомка
+    fdCOMpipeR = open(PIPE_READ, O_RDONLY | O_NONBLOCK);
+    if (fdCOMpipeR <= 0)
+    {
+        perror("open read fifo\n");
+        return -1;
+    }
+    
+    printf("%s открыт для чтения: %d\n", 
+           PIPE_READ, 
+           fdCOMpipeR);
     //создаём первый процесс
-    int pid = fork();
-    switch (pid)
+    PIDCOM1 = fork();
+    switch (PIDCOM1)
     {
         case -1:
             perror("Fork");
@@ -13,30 +52,16 @@ int main()
         case 0:
         {
             //потомок
-            PIDCOM1 = getpid();
-            printf ("Создан процесс для COM1: %d\n", PIDCOM1);
-            if ( mkfifo(NAMEDPIPE_NAME, 0777) ) 
-            {
-                perror("error mkfifo\n");
-                return 1;
-            }
-            printf("%s is created\n", NAMEDPIPE_NAME);
-            
-            execl("RS485_COM1", NAMEDPIPE_NAME, NULL);
+            printf ("Создан процесс для COM1: %d\n", PIDCOM1);            
+            execl("RS485_COM1", PIPE_READ, PIPE_WRITE, NULL);
             break;
         }
         default:
         {            
             //родитель
-            usleep(5000);
-            fdCOM1pipe = open(NAMEDPIPE_NAME, O_RDONLY | O_NONBLOCK);
-            if (fdCOM1pipe <= 0)
-            {
-                perror("open read fifo\n");
-                return -1;
-            }
-             printf("%s открыт для чтения: %d\n", NAMEDPIPE_NAME, 
-                                                  fdCOM1pipe);
+           // usleep(5000);
+            
+           
            /* int status;
             waitpid(pid, &status, 0);
             printf("exit normally? %s\n", (WIFEXITED(status) ? "true" : "false"));
@@ -46,8 +71,8 @@ int main()
 
     }
     
-    int pid2 = fork();
-    switch (pid2)
+    PIDCOM2 = fork();
+    switch (PIDCOM2)
     {
         case -1:
             perror("Fork\n");
@@ -70,6 +95,8 @@ int main()
 
     }
     Rcom1Inint();
+    
+
     while (1)
     {        
         sleep(5);
@@ -105,13 +132,25 @@ void Rcom1Inint()
 void handlingDataCOM(int signum, siginfo_t *siginfo, void *extra)
 {
     int data_numb = siginfo->si_value.sival_int;
-    //прочитать поочерёдно всё очереди
+    int procPID = siginfo->si_pid;
     printf("Сигнал от %d. Получено байт: %d\n", 
-            siginfo->si_pid, 
+            procPID, 
             data_numb);
     char bufs[data_numb];
     printf("Создан массив для хранения %d байт\n", data_numb);
-    int res = read(fdCOM1pipe, bufs, data_numb);
+    int res = read(fdCOMpipeR, bufs, data_numb);
+    //прочитать поочерёдно всё очереди
+    // if (procPID == PIDCOM1)
+    // {
+    //     //операции обработки данных для COM1
+    //     return;
+    // }
+    // if (procPID == PIDCOM2)
+    // {
+    //     //операции обработки данных для COM2
+    //     return;
+    // }
+    
     //close(fdCOM1pipe);
     printf("Считано из FIFO: %d\n", res);
     int i = 0;
@@ -120,4 +159,27 @@ void handlingDataCOM(int signum, siginfo_t *siginfo, void *extra)
 
     printf("\n");
 
+    writeDataCOM(PIDCOM1, bufs, res);
+
+}
+
+void writeDataCOM(int pid, const char *data, const int datanum)
+{
+    union sigval value;  
+    value.sival_int = datanum;
+    fdCOMpipeW = open(PIPE_WRITE, O_WRONLY | O_NONBLOCK);
+    if (fdCOMpipeW <= 0)
+    {
+        perror("open write fifo\n");
+        return -1;
+    }
+    printf("%s открыт для записи: %d\n", 
+           PIPE_WRITE, 
+           fdCOMpipeW);
+
+    int res = write(fdCOMpipeW, data, datanum);
+    printf("Записано в FIFO: %d\n", res);
+    close(fdCOMpipeW);
+    sigqueue(pid, SIGRTMIN+1, value);
+    printf ("ОТправка сигнала к %d\n", pid);
 }
