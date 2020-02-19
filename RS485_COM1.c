@@ -14,12 +14,13 @@ COM_PORT portS2;
 
 int main(char argc, char *argv[])
 {
-  if (int fdFIFO = open(argv[1], ) <= 0)
-  {
-    perror("Error open FIFO file");
-    return -1;
-  }
-  printf("Hello World!!!\n");
+  PPID = (int)getppid();
+  fName = argv[0];
+  printf("%s получен\n", fName);
+  //TODO: доделать добавление именованного файла
+  //рассмотреть возможность перехода на разделяемую память
+
+  printf("COM1 запущен. PID: %d\n", (int)getpid());
   printf("Родительский PID %d \n", (int)getppid());
 
   typeInit(&portS2, COM1, BAUDRATE, signal_handler_IO, 
@@ -38,6 +39,9 @@ int main(char argc, char *argv[])
 //обработка приёма данных с COM1
 void signal_handler_IO(int status)
 {
+  union sigval value;
+  
+  
   static echo_flag = 0;
   int bytes = 0;
 
@@ -49,7 +53,28 @@ void signal_handler_IO(int status)
     printf("принят сигнал SIGIO: %d\n", bytes);
     char buf[bytes];
     //(void)setitimer(ITIMER_REAL, NULL, NULL); /* выключить таймер */
-    int res = read(portS2.port_d, &buf, bytes);//чтение   
+    int res = read(portS2.port_d, &buf, bytes);//чтение 
+    int i = 0;
+    for (i = 0; i < bytes; i++)
+      printf("%c ", buf[i]);
+
+    printf("\n");
+    value.sival_int = bytes;
+    //запись полученных данных в именованный канал
+    fdFIFO = open(fName, O_WRONLY | O_NONBLOCK);
+    if (fdFIFO <= 0)
+    {
+      perror("open fifo\n");
+      return -1;
+    }
+     printf("%s открыт: %d\n", fName, fdFIFO);
+    
+    res = write(fdFIFO, buf, bytes);
+    printf("Записано в FIFO: %d\n", res);
+    close(fdFIFO);
+    //отправка сигнала родителю, что данные прочитаны  
+    sigqueue(PPID, SIGRTMIN, value);
+    
   }
 
 }

@@ -24,7 +24,7 @@ typedef struct port_t
     char *port_name;//адрес порта в системе
     int baudrate;//скорость
     char echo_block;//блокировка эха
-    char write_block;//блокировка запись, в случае, если идёт чтение
+    char write_block;//блокировка записи, в случае, если идёт чтение
     struct termios oldtio, newtio;//структура хранящая настройка порта
     struct sigaction saio, satim; //объявление действия сигнала (signal action)
     //struct itimerspec timer; //таймер для отсчёта времени блокировки приёмника

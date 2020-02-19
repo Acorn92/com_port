@@ -2,6 +2,7 @@
 #define RS485_COM1_H
 
 #include <sys/stat.h>
+#include <signal.h>
 #include "com.h"
 
 
@@ -16,6 +17,12 @@
 #define FALSE 0
 
 #define DEBUG_PRINT = 1;
+
+char *fName;
+
+int PPID = 0;//идентификатор родительского процесса
+
+int fdFIFO;//дескриптор файла именованного канала
 
 void signal_handler_IO (int status); //обработчик сигнала
 void signal_handler_TIMOUT(int status);

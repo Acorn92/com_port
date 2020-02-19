@@ -9,7 +9,7 @@ int openPort(COM_PORT *port)
         printf("function: openPort %s\n", port->port_name);
     #endif
     //открываем порт
-    port->port_d = open(port->port_name, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    port->port_d = open(port->port_name, O_RDWR | O_NOCTTY | O_NONBLOCK | O_NDELAY);
     
     #ifdef DEBUG_PRINT
         printf("function: open %s\n", port->port_name);
@@ -28,6 +28,8 @@ int openPort(COM_PORT *port)
     #ifdef DEBUG_PRINT
         printf("Порт %s успешно открыт\n", port->port_name);
     #endif
+
+    fcntl(port->port_d, F_SETFL, 0);//очистка флагов состояний
 
     //настройка сигнала
     port->saio.sa_handler = port->read_handler;    
@@ -51,17 +53,61 @@ int openPort(COM_PORT *port)
     //считываем старые параметры порта
     tcgetattr(port->port_d, &port->oldtio);
 
+    
     //установка новых параметров порта
-    bzero(&port->newtio, sizeof(port->newtio));
+    /*bzero(&port->newtio, sizeof(port->newtio));
     port->newtio.c_cflag = port->baudrate | CS8 | CLOCAL | CREAD;
     port->newtio.c_iflag = 0;
     port->newtio.c_oflag = 0;
+    port->newtio.c_oflag &= ~OPOST; //Обязательно отключить постобработку
     port->newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG | ECHONL);
     port->newtio.c_cc[VTIME] = 5; //установка таймаута для понимания конца посылкаи(n*0.1s)
     port->newtio.c_cc[VMIN] = 0; //блокировать чтение пока не будет принят 1 байт
+*/
+    memset(&port->newtio, 0, sizeof(struct termios));
+    if ((cfsetispeed(&port->newtio, port->baudrate) < 0) ||
+        (cfsetospeed(&port->newtio, port->baudrate) < 0)) 
+    {
+        perror("Unable to set baudrate");
+    }   
+
+    /*
+    CREAD - включить прием
+    CLOCAL - игнорировать управление линиями с помошью
+    */
+    port->newtio.c_cflag |= (CREAD | CLOCAL);
+    /* CSIZE - маска размера символа */
+    port->newtio.c_cflag &= ~CSIZE;
+    /* CS8 - 8 битные символы */
+    port->newtio.c_cflag |= CS8;
+ 
+    /* CSTOPB - при 1 - два стоп бита, при 0 - один */
+    port->newtio.c_cflag &= ~CSTOPB;
+ 
+    /*
+    ICANON - канонический режим
+    ECHO - эхо принятых символов
+    ECHOE - удаление предыдущих символов по ERASE, слов по WERASE
+    ISIG - реагировать на управляющие символы остановки, выхода, прерывания
+    */
+    port->newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    /* INPCK - вкл. проверку четности */
+    port->newtio.c_iflag &= ~(INPCK);
+    /* OPOST - режим вывода по умолчанию */
+    port->newtio.c_oflag &= ~OPOST;
+ 
+    /*
+    TCSANOW - примернить изменения сейчасже
+    TCSADRAIN - применить после передачи всех текущих данных
+    TCSAFLUSH - приемнить после окончания передачи, все принятые но не считанные данные очистить
+    */
+    if (tcsetattr(port->port_d, TCSANOW, &port->newtio) < 0)
+    {
+        perror("Unable to set port parameters");     
+    }
 
     tcflush(port->port_d, TCIFLUSH);//очистка линии
-    tcsetattr(port->port_d, TCSANOW, &port->newtio);//активация новых параметров
+    //tcsetattr(port->port_d, TCSANOW, &port->newtio);//активация новых параметров
 
     return 0;
 }
